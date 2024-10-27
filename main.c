@@ -37,5 +37,5 @@ void encode(Node parent_node);
 
 int main() {
 
-
+    return 0;
 }
