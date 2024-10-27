@@ -29,7 +29,7 @@ Node *build_tree(NodeArray node_arr, int freq_arr[]);
 //encoding function: opens file, collects freq, then build tree.
 //Go through the file again and write the bin code from tree into new file
 //then write out encoded, and the key.
-//TODO: think about how to store key file with the encoded file.
+
 void encode(Node parent_node);
 
 
