@@ -62,24 +62,31 @@ void enqueue(NodeArray *arr,Node *node) {
         return;
     }
 
-
+    arr->start[index]=*node;
     if(last>0) {
+        Node *temp;
+        Node *child=arr->start+index; //new pointer. I fear if I set node to this, node's original data is lost forever in mem
         //swap with parent
+        //This is a bit confusing but should work :)
         while (1) {
-            //This is a bit confusing but should work :)
-            Node *parent=arr->start+(index-1)/2;
-            if(node->freq>=parent->freq) {
+            Node *parent=arr->start+(index-1)/2; //parent pointing to the (index-1)/2 (aka parent)
+            if(child->freq >= parent->freq) {
                 break;
             }
-            Node *temp=node;
-            *node=*parent;
+            temp=child;
+            *child=*parent;
             *parent=*temp;
             index=(index-1)/2;
+            child=parent;
+        }
     }
+    arr->last++;
+
+    //test print
+    int i;
+    for (i=0;i<last;i++) {
+        printf("\n%c,%d\n",arr->start[i].data,arr->start[i].freq);
     }
-
-    arr->start[index]=*node;
-
 }
 
 void dequeue(Node *arr);
@@ -103,13 +110,17 @@ Node *build_tree(FreqElem *arr) {
     FreqElem *queue;
     int i;
     int size=0;
+    queue=(FreqElem*)malloc(char_set*sizeof(FreqElem));
     for (i=0;i<char_set;i++) {
         if (arr[i].freq!=0)
             size++;
     }
 
-    queue=(FreqElem*)malloc(size*sizeof(FreqElem));
 
+
+    for (i=0;i<char_set;i++) {
+
+    }
 
 }
 
@@ -149,7 +160,7 @@ int encode(char input_file[], char output_file[]) {
 
     //for testing purposes, output values in freq array
     //to the output file
-    for(i=0;i<128;i++) {
+    for(i=32;i<127;i++) {
         fprintf(out_file,",[%c,%d]",freq_arr[i].data,freq_arr[i].freq);
         if (i%5==0)
             fprintf(out_file,"\n");
