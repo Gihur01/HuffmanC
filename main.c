@@ -85,8 +85,9 @@ void enqueue(NodeArray *arr,Node *node) {
     //test print
     int i;
     for (i=0;i<last;i++) {
-        printf("\n%c,%d\n",arr->start[i].data,arr->start[i].freq);
+        printf("[%c,%d],",arr->start[i].data,arr->start[i].freq);
     }
+    printf("    ");
 }
 
 void dequeue(Node *arr);
@@ -107,13 +108,20 @@ int update_freq(char c, FreqElem arr[]) {
 
 
 Node *build_tree(FreqElem *arr) {
-    FreqElem *queue;
+    Node *queue;
     int i;
     int size=0;
-    queue=(FreqElem*)malloc(char_set*sizeof(FreqElem));
+    Node node;
+    queue=(Node*)malloc(char_set*sizeof(Node));
+    NodeArray node_array={queue,char_set,0};
     for (i=0;i<char_set;i++) {
-        if (arr[i].freq!=0)
-            size++;
+        if (arr[i].freq!=0) {
+            node.left_node=node.right_node=NULL;
+            node.data=arr[i].data;
+            node.freq=arr[i].freq;
+            enqueue(&node_array,&node);
+        }
+
     }
 
 
@@ -158,13 +166,15 @@ int encode(char input_file[], char output_file[]) {
         update_freq(c,freq_arr);
     }
 
+    build_tree(freq_arr);
+
     //for testing purposes, output values in freq array
     //to the output file
-    for(i=32;i<127;i++) {
+    /*for(i=32;i<127;i++) {
         fprintf(out_file,",[%c,%d]",freq_arr[i].data,freq_arr[i].freq);
         if (i%5==0)
             fprintf(out_file,"\n");
-    }
+    }*/
 
 
     fclose(in_file);
