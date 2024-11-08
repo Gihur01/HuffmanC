@@ -54,6 +54,17 @@ void print_Node(Node node) {
     printf("[%c,%d],",node.data,node.freq);
 }
 
+void print_NodeArray(NodeArray *arr) {
+    int i;
+    int last=arr->last;
+    for (i=0;i<=last;i++) {
+        printf("[%c,%d],",arr->start[i].data,arr->start[i].freq);
+        // fprintf(log_file,"[%c,%d],",arr->start[i].data,arr->start[i].freq);
+    }
+    // fprintf(log_file,"    ");
+
+}
+
 /*To create a Huffman tree from a freq list, a priority queue is used.
 This queue is implemented by a min-heap, where the smallest node is at the beginning.*/
 //to enqueue, add new node at end, and swap with parent(s) until it is smaller than its parent.
@@ -87,13 +98,7 @@ void enqueue(NodeArray *arr,Node *node,FILE *log_file) {
     }
     arr->last++;
 
-    //test print
-    int i;
-    /*for (i=0;i<=last;i++) {
-        printf("[%c,%d],",arr->start[i].data,arr->start[i].freq);
-        fprintf(log_file,"[%c,%d],",arr->start[i].data,arr->start[i].freq);
-    }
-    fprintf(log_file,"    ");*/
+
 }
 
 //swap the root with the lowermost branch, and remove it.
@@ -105,22 +110,30 @@ Node dequeue(NodeArray *arr) {
         Node err={NULL,NULL,0,0};
         return err;
     }
-    Node to_return=arr->start[last];
-    last--;
+    Node to_return=arr->start[last]; //so that it isn't lost
+
+    arr->start[last] = arr->start[0];
+    arr->start[0] = to_return;
 
     int index=0;
-    Node *parent=arr->start+index;
-    Node *child=arr->start+2*index+1;
-    Node temp;
+    Node *parent, *child, temp;
+
+    arr->last--;
     while(2*index+1 < last) {
+        parent=arr->start+index;
+        child=arr->start+2*index+1;
+
         if(parent->freq < child->freq)
             break;
         temp=*parent;
         *parent=*child;
         *child=temp;
-        parent=arr->start+index;
-        child=arr->start+2*index+1;
+
+        index=index*2+1;
     }
+
+    //test print
+
 
     return to_return;
 
@@ -159,6 +172,16 @@ Node *build_tree(FreqElem *arr) {
         }
 
     }
+
+    // FILE *data=fopen("data.txt","wb");
+    // fwrite(&node_array,sizeof(NodeArray),node_array.len,data);
+
+    print_NodeArray(&node_array);
+    printf("\n\n");
+    Node temp_node=dequeue(&node_array);
+    print_NodeArray(&node_array);
+    printf("\n");
+    print_Node(temp_node);
 
 
 
