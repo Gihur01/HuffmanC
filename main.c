@@ -9,7 +9,7 @@ struct Node {
     struct Node *left_node;
     struct Node *right_node;
     char data;
-    char freq;
+    int freq;
 };
 
 typedef struct Node Node;
@@ -50,10 +50,14 @@ void insert_node(Node *parent, Node *child, int pos) {
 
 }
 
+void print_Node(Node node) {
+    printf("[%c,%d],",node.data,node.freq);
+}
+
 /*To create a Huffman tree from a freq list, a priority queue is used.
 This queue is implemented by a min-heap, where the smallest node is at the beginning.*/
 //to enqueue, add new node at end, and swap with parent(s) until it is smaller than its parent.
-void enqueue(NodeArray *arr,Node *node) {
+void enqueue(NodeArray *arr,Node *node,FILE *log_file) {
     int last=arr->last;
     int len=arr->len;
     int index=last; //the index of the new node
@@ -64,18 +68,19 @@ void enqueue(NodeArray *arr,Node *node) {
 
     arr->start[index]=*node;
     if(last>0) {
-        Node *temp;
-        Node *child=arr->start+index; //new pointer. I fear if I set node to this, node's original data is lost forever in mem
+        Node temp;
+        Node *child=arr->start+index; //new pointer to the new node
         //swap with parent
         //This is a bit confusing but should work :)
+            //- no it doesn't
         while (1) {
             Node *parent=arr->start+(index-1)/2; //parent pointing to the (index-1)/2 (aka parent)
             if(child->freq >= parent->freq) {
                 break;
             }
-            temp=child;
+            temp=*child;
             *child=*parent;
-            *parent=*temp;
+            *parent=temp;
             index=(index-1)/2;
             child=parent;
         }
@@ -84,13 +89,42 @@ void enqueue(NodeArray *arr,Node *node) {
 
     //test print
     int i;
-    for (i=0;i<last;i++) {
+    /*for (i=0;i<=last;i++) {
         printf("[%c,%d],",arr->start[i].data,arr->start[i].freq);
+        fprintf(log_file,"[%c,%d],",arr->start[i].data,arr->start[i].freq);
     }
-    printf("    ");
+    fprintf(log_file,"    ");*/
 }
 
-void dequeue(Node *arr);
+//swap the root with the lowermost branch, and remove it.
+//Then keep on swapping the new root with its child until heap property satisfied.
+Node dequeue(NodeArray *arr) {
+    int last=arr->last;
+    if(last<=0) {
+        printf("The queue is empty!");
+        Node err={NULL,NULL,0,0};
+        return err;
+    }
+    Node to_return=arr->start[last];
+    last--;
+
+    int index=0;
+    Node *parent=arr->start+index;
+    Node *child=arr->start+2*index+1;
+    Node temp;
+    while(2*index+1 < last) {
+        if(parent->freq < child->freq)
+            break;
+        temp=*parent;
+        *parent=*child;
+        *child=temp;
+        parent=arr->start+index;
+        child=arr->start+2*index+1;
+    }
+
+    return to_return;
+
+}
 
 //takes one char and the frequency list,
 //and updates the corresponding frequency
@@ -108,6 +142,8 @@ int update_freq(char c, FreqElem arr[]) {
 
 
 Node *build_tree(FreqElem *arr) {
+    FILE *log_file=fopen("log.txt","w");
+
     Node *queue;
     int i;
     int size=0;
@@ -119,7 +155,7 @@ Node *build_tree(FreqElem *arr) {
             node.left_node=node.right_node=NULL;
             node.data=arr[i].data;
             node.freq=arr[i].freq;
-            enqueue(&node_array,&node);
+            enqueue(&node_array,&node,log_file);
         }
 
     }
@@ -161,7 +197,6 @@ int encode(char input_file[], char output_file[]) {
 
     //update frequencies
     char c;
-
     while ((c = fgetc(in_file)) != EOF) {  // Read character by character until end of file
         update_freq(c,freq_arr);
     }
@@ -170,11 +205,11 @@ int encode(char input_file[], char output_file[]) {
 
     //for testing purposes, output values in freq array
     //to the output file
-    /*for(i=32;i<127;i++) {
+    for(i=0;i<127;i++) {
         fprintf(out_file,",[%c,%d]",freq_arr[i].data,freq_arr[i].freq);
         if (i%5==0)
             fprintf(out_file,"\n");
-    }*/
+    }
 
 
     fclose(in_file);
