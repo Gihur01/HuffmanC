@@ -14,6 +14,7 @@ struct Node {
 
 typedef struct Node Node;
 
+//array of nodes with length. Points to the first node.
 typedef struct {
     Node *start;
     int len;
@@ -25,12 +26,8 @@ typedef struct {
     int freq;
 } FreqElem;
 
-//array of nodes with length. Points to the first node.
 
-/*typedef struct {
-    FreqElem *first_elem;
-    int length;
-} FreqArray;*/
+
 
 //insert a char into left or right of node:
 //depending on the value of pos
@@ -82,10 +79,8 @@ void enqueue(NodeArray *arr,Node *node,FILE *log_file) {
         Node temp;
         Node *child=arr->start+index; //new pointer to the new node
         //swap with parent
-        //This is a bit confusing but should work :)
-            //- no it doesn't
         while (1) {
-            Node *parent=arr->start+(index-1)/2; //parent pointing to the (index-1)/2 (aka parent)
+            Node *parent=arr->start+(index-1)/2; //In this queue, the parent is at (index-1)/2
             if(child->freq >= parent->freq) {
                 break;
             }
@@ -97,8 +92,6 @@ void enqueue(NodeArray *arr,Node *node,FILE *log_file) {
         }
     }
     arr->last++;
-
-
 }
 
 //swap the root with the lowermost branch, and remove it.
@@ -114,6 +107,8 @@ Node dequeue(NodeArray *arr) {
 
     arr->start[last] = arr->start[0];
     arr->start[0] = to_return;
+    //here idk why to_return is NULL, but arr->start[last] is correct. Aren't they the same?
+    //wait... arr->start[last] is just updated...
 
     int index=0;
     Node *parent, *child, temp;
@@ -176,6 +171,8 @@ Node *build_tree(FreqElem *arr) {
     // FILE *data=fopen("data.txt","wb");
     // fwrite(&node_array,sizeof(NodeArray),node_array.len,data);
 
+
+    //test print
     print_NodeArray(&node_array);
     printf("\n\n");
     Node temp_node=dequeue(&node_array);
