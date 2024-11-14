@@ -18,7 +18,7 @@ typedef struct Node Node;
 typedef struct {
     Node *start;
     int len;
-    int last;
+    int last; //points to next available space
 } NodeArray;
 
 typedef struct {
@@ -97,20 +97,20 @@ void enqueue(NodeArray *arr,Node *node,FILE *log_file) {
 //swap the root with the lowermost branch, and remove it.
 //Then keep on swapping the new root with its child until heap property satisfied.
 Node dequeue(NodeArray *arr) {
+    Node nullNode={NULL,NULL,0,0};
     int last=arr->last;
     if(last<=0) {
         printf("The queue is empty!");
-        Node err={NULL,NULL,0,0};
-        return err;
+        return nullNode;
     }
-    Node to_return=arr->start[last]; //so that it isn't lost
 
-    arr->start[last] = arr->start[0];
-    arr->start[0] = to_return;
+    Node to_return=arr->start[0]; //so that it isn't lost
+    arr->start[0]=arr->start[last-1]; //last-1, bcs last points to next available space
+    arr->start[last] = nullNode;
     //here idk why to_return is NULL, but arr->start[last] is correct. Aren't they the same?
     //wait... arr->start[last] is just updated...
 
-    int index=0;
+    int index=0; //TODO: debug this and see why to_return is a node containing NULL...
     Node *parent, *child, temp;
 
     arr->last--;
@@ -177,7 +177,7 @@ Node *build_tree(FreqElem *arr) {
     printf("\n\n");
     Node temp_node=dequeue(&node_array);
     print_NodeArray(&node_array);
-    printf("\n");
+    printf("\nNode is: ");
     print_Node(temp_node);
 
 
