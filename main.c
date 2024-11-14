@@ -107,10 +107,8 @@ Node dequeue(NodeArray *arr) {
     Node to_return=arr->start[0]; //so that it isn't lost
     arr->start[0]=arr->start[last-1]; //last-1, bcs last points to next available space
     arr->start[last-1] = nullNode;
-    //here idk why to_return is NULL, but arr->start[last] is correct. Aren't they the same?
-    //wait... arr->start[last] is just updated...
 
-    int index=0; //TODO: debug this and see why to_return is a node containing NULL...
+    int index=0;
     Node *parent, *child, temp;
 
     arr->last--;
@@ -126,9 +124,6 @@ Node dequeue(NodeArray *arr) {
 
         index=index*2+1;
     }
-
-    //test print
-
 
     return to_return;
 
@@ -168,19 +163,13 @@ Node *build_tree(FreqElem *arr) {
 
     }
 
-    // FILE *data=fopen("data.txt","wb");
-    // fwrite(&node_array,sizeof(NodeArray),node_array.len,data);
-
-
     //test print
-    print_NodeArray(&node_array);
+    /*print_NodeArray(&node_array);
     printf("\n\n");
     Node temp_node=dequeue(&node_array);
     print_NodeArray(&node_array);
     printf("\nNode is: ");
-    print_Node(temp_node);
-
-
+    print_Node(temp_node);*/
 
     for (i=0;i<char_set;i++) {
 
