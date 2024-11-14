@@ -54,7 +54,7 @@ void print_Node(Node node) {
 void print_NodeArray(NodeArray *arr) {
     int i;
     int last=arr->last;
-    for (i=0;i<=last;i++) {
+    for (i=0;i<=last-1;i++) {
         printf("[%c,%d],",arr->start[i].data,arr->start[i].freq);
         // fprintf(log_file,"[%c,%d],",arr->start[i].data,arr->start[i].freq);
     }
@@ -106,7 +106,7 @@ Node dequeue(NodeArray *arr) {
 
     Node to_return=arr->start[0]; //so that it isn't lost
     arr->start[0]=arr->start[last-1]; //last-1, bcs last points to next available space
-    arr->start[last] = nullNode;
+    arr->start[last-1] = nullNode;
     //here idk why to_return is NULL, but arr->start[last] is correct. Aren't they the same?
     //wait... arr->start[last] is just updated...
 
