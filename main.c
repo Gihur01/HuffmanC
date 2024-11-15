@@ -39,13 +39,23 @@ typedef struct {
 // }
 
 //add a node below another
-void insert_node(Node *parent, Node *child, int pos) {
+void insert_node_at(Node *parent, Node *child, int pos) {
     switch (pos) {
         case 0: parent->left_node=child; break;
         case 1: parent->right_node=child; break;
     }
 
 }
+
+void insert_node(Node *parent,Node *child) {
+    if(parent->left_node==NULL)
+        parent->left_node=child;
+    else if(parent->right_node==NULL)
+        parent->right_node=child;
+    else
+        printf("No space for child!");
+}
+
 
 void print_Node(Node node) {
     printf("[%c,%d],",node.data,node.freq);
@@ -65,7 +75,7 @@ void print_NodeArray(NodeArray *arr) {
 /*To create a Huffman tree from a freq list, a priority queue is used.
 This queue is implemented by a min-heap, where the smallest node is at the beginning.*/
 //to enqueue, add new node at end, and swap with parent(s) until it is smaller than its parent.
-void enqueue(NodeArray *arr,Node *node,FILE *log_file) {
+void enqueue(NodeArray *arr,Node *node) {
     int last=arr->last;
     int len=arr->len;
     int index=last; //the index of the new node
@@ -96,6 +106,7 @@ void enqueue(NodeArray *arr,Node *node,FILE *log_file) {
 
 //swap the root with the lowermost branch, and remove it.
 //Then keep on swapping the new root with its child until heap property satisfied.
+//returns a null node if empty!
 Node dequeue(NodeArray *arr) {
     Node nullNode={NULL,NULL,0,0};
     int last=arr->last;
@@ -129,6 +140,7 @@ Node dequeue(NodeArray *arr) {
 
 }
 
+
 //takes one char and the frequency list,
 //and updates the corresponding frequency
 //IMPORTANT: c is counted at the index of its ascii code
@@ -143,22 +155,28 @@ int update_freq(char c, FreqElem arr[]) {
 }
 
 
+//This function builds the priority queue, from which the tree is constructed.
 
-Node *build_tree(FreqElem *arr) {
-    FILE *log_file=fopen("log.txt","w");
+NodeArray *build_queue(FreqElem *arr) {
+    // FILE *log_file=fopen("log.txt","w");
 
-    Node *queue;
+    Node *node_list;
     int i;
     int size=0;
     Node node;
-    queue=(Node*)malloc(char_set*sizeof(Node));
-    NodeArray node_array={queue,char_set,0};
+    node_list=(Node*)malloc(char_set*sizeof(Node));
+
+    NodeArray *queue=(NodeArray*)malloc(sizeof(NodeArray));
+    queue->start=node_list;
+    queue->len=char_set;
+    queue->last=0;
+
     for (i=0;i<char_set;i++) {
         if (arr[i].freq!=0) {
             node.left_node=node.right_node=NULL;
             node.data=arr[i].data;
             node.freq=arr[i].freq;
-            enqueue(&node_array,&node,log_file);
+            enqueue(queue,&node);
         }
 
     }
@@ -171,11 +189,23 @@ Node *build_tree(FreqElem *arr) {
     printf("\nNode is: ");
     print_Node(temp_node);*/
 
-    for (i=0;i<char_set;i++) {
+    return queue;
+}
+
+//builds the huffman tree
+Node build_tree(NodeArray *queue) {
+    Node nullNode={NULL,NULL,0,0};
+    if(queue->last<=0)
+        return nullNode;
+    Node *parent; //a new node, parent of the 2 smallest ones.
+    Node child1,child2; //2 smallest nodes
+    while (queue->last>=0) {
+
 
     }
 
 }
+
 
 //encoding function: opens file, collects freq, then build tree.
 //Go through the file again and write the bin code from tree into new file
@@ -210,7 +240,7 @@ int encode(char input_file[], char output_file[]) {
         update_freq(c,freq_arr);
     }
 
-    build_tree(freq_arr);
+    build_queue(freq_arr);
 
     //for testing purposes, output values in freq array
     //to the output file
