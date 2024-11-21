@@ -27,24 +27,12 @@ typedef struct {
 } FreqElem;
 
 
-
-
-//insert a char into left or right of node:
-//depending on the value of pos
-// void insert_char(Node *node,char c,int pos) {
-//     switch (pos) {
-//         case 0: node->left_data=c; break;
-//         case 1: node->right_data=c; break;
-//     }
-// }
-
 //add a node below another
 void insert_node_at(Node *parent, Node *child, int pos) {
     switch (pos) {
         case 0: parent->left_node=child; break;
         case 1: parent->right_node=child; break;
     }
-
 }
 
 void insert_node(Node *parent,Node *child) {
@@ -69,6 +57,29 @@ void print_NodeArray(NodeArray *arr) {
         // fprintf(log_file,"[%c,%d],",arr->start[i].data,arr->start[i].freq);
     }
     // fprintf(log_file,"    ");
+}
+
+void print_tree(Node *node) {
+    printf(",%c",node->data);
+    if(node->left_node!=NULL){
+        printf(" left: ");
+        print_tree(node->left_node);
+    }
+    if (node->right_node!=NULL){
+        printf(" right: ");
+        print_tree(node->right_node);
+    }
+}
+
+void free_tree(Node *node) {
+    if(node->left_node!=NULL) {
+        free_tree(node->left_node);
+    }
+    if(node->right_node!=NULL) {
+        free_tree(node->right_node);
+    }
+    else
+        free(node);
 
 }
 
@@ -198,11 +209,23 @@ Node build_tree(NodeArray *queue) {
     if(queue->last<=0)
         return nullNode;
     Node *parent; //a new node, parent of the 2 smallest ones.
-    Node child1,child2; //2 smallest nodes
+    Node *child1,*child2; //2 smallest nodes
     while (queue->last>=0) {
-
+        parent=(Node*)malloc(sizeof(Node));
+        child1=(Node*)malloc(sizeof(Node));
+        child2=(Node*)malloc(sizeof(Node));
+        *child1=dequeue(queue);
+        *child2=dequeue(queue);
+        insert_node_at(parent,child1,0);
+        insert_node_at(parent,child2,1);
+        enqueue(queue,parent);
 
     }
+    print_NodeArray(queue);
+    printf("\n\ntree:");
+    print_tree(parent);
+    free_tree(parent);
+
 
 }
 
