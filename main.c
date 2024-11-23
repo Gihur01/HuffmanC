@@ -1,16 +1,17 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include "print_tree.h"
 
 const int char_set=128;
 //This global var sets the size of the usable character set. (Currently ASCII)
 //Can be later changed to include a larger one
 
-struct Node {
+/*struct Node {
     struct Node *left_node;
     struct Node *right_node;
     char data;
     int freq;
-};
+};*/
 
 typedef struct Node Node;
 
@@ -52,14 +53,16 @@ void print_Node(Node node) {
 void print_NodeArray(NodeArray *arr) {
     int i;
     int last=arr->last;
-    for (i=0;i<=last-1;i++) {
+    printf("last:%d, ",arr->last);
+    for (i=0;i<15;i++) {
         printf("[%c,%d],",arr->start[i].data,arr->start[i].freq);
+
         // fprintf(log_file,"[%c,%d],",arr->start[i].data,arr->start[i].freq);
     }
     // fprintf(log_file,"    ");
 }
 
-void print_tree(Node *node) {
+/*void print_tree(Node *node) {
     printf(",%c",node->data);
     if(node->left_node!=NULL){
         printf(" left: ");
@@ -69,7 +72,7 @@ void print_tree(Node *node) {
         printf(" right: ");
         print_tree(node->right_node);
     }
-}
+}*/
 
 void free_tree(Node *node) {
     if(node->left_node!=NULL) {
@@ -122,7 +125,7 @@ Node dequeue(NodeArray *arr) {
     Node nullNode={NULL,NULL,0,0};
     int last=arr->last;
     if(last<=0) {
-        printf("The queue is empty!");
+        printf("The queue is empty! last is: %d\n",arr->last);
         return nullNode;
     }
 
@@ -131,12 +134,17 @@ Node dequeue(NodeArray *arr) {
     arr->start[last-1] = nullNode;
 
     int index=0;
-    Node *parent, *child, temp;
+    Node *parent, *child, *child2, temp; //child2 is the right child. needed to compare which child is smaller.
 
     arr->last--;
+    last--;
     while(2*index+1 < last) {
         parent=arr->start+index;
         child=arr->start+2*index+1;
+        child2=arr->start+2*index+2;
+        if(child2->freq < child->freq && child2->freq>0) {
+            child=child2;
+        }
 
         if(parent->freq < child->freq)
             break;
@@ -146,6 +154,10 @@ Node dequeue(NodeArray *arr) {
 
         index=index*2+1;
     }
+    print_Node(to_return);
+    printf("\n");
+    print_NodeArray(arr);
+    printf("\n");
 
     return to_return;
 
@@ -204,28 +216,36 @@ NodeArray *build_queue(FreqElem *arr) {
 }
 
 //builds the huffman tree
-Node build_tree(NodeArray *queue) {
+Node *build_tree(NodeArray *queue) {
+    printf("initial");
+    print_NodeArray(queue);
+    printf("\ndequeue results:\n");
     Node nullNode={NULL,NULL,0,0};
     if(queue->last<=0)
-        return nullNode;
+        return NULL;
     Node *parent; //a new node, parent of the 2 smallest ones.
     Node *child1,*child2; //2 smallest nodes
-    while (queue->last>=0) {
+    while (queue->last>1) {
         parent=(Node*)malloc(sizeof(Node));
+        parent->left_node=parent->right_node=NULL;
+        parent->data=0;
         child1=(Node*)malloc(sizeof(Node));
         child2=(Node*)malloc(sizeof(Node));
         *child1=dequeue(queue);
         *child2=dequeue(queue);
+        printf("\n");
         insert_node_at(parent,child1,0);
         insert_node_at(parent,child2,1);
+        parent->freq=child1->freq+child2->freq;
         enqueue(queue,parent);
 
     }
+    printf("\nqueue is now:\n");
     print_NodeArray(queue);
     printf("\n\ntree:");
     print_tree(parent);
-    free_tree(parent);
 
+    return parent;
 
 }
 
@@ -263,7 +283,10 @@ int encode(char input_file[], char output_file[]) {
         update_freq(c,freq_arr);
     }
 
-    build_queue(freq_arr);
+    NodeArray *queue = build_queue(freq_arr);
+    Node *tree=build_tree(queue);
+
+
 
     //for testing purposes, output values in freq array
     //to the output file
@@ -273,7 +296,8 @@ int encode(char input_file[], char output_file[]) {
             fprintf(out_file,"\n");
     }
 
-
+    free(queue);
+    free_tree(tree);
     fclose(in_file);
     fclose(out_file);
     return 0;

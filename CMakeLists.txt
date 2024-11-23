@@ -3,4 +3,6 @@ project(Huffman C)
 
 set(CMAKE_C_STANDARD 90)
 
-add_executable(Huffman main.c)
+add_executable(Huffman main.c
+        print_tree.c
+        print_tree.h)
