@@ -27,6 +27,12 @@ typedef struct {
     int freq;
 } FreqElem;
 
+typedef struct {
+    char ch;
+    unsigned int code;
+    unsigned int length;
+} CodeElem;
+
 
 //add a node below another
 void insert_node_at(Node *parent, Node *child, int pos) {
@@ -56,10 +62,15 @@ void print_NodeArray(NodeArray *arr) {
     printf("last:%d, ",arr->last);
     for (i=0;i<15;i++) {
         printf("[%c,%d],",arr->start[i].data,arr->start[i].freq);
-
-        // fprintf(log_file,"[%c,%d],",arr->start[i].data,arr->start[i].freq);
     }
-    // fprintf(log_file,"    ");
+}
+
+void print_table(CodeElem table[]) {
+    int i;
+    for (i=0;i<char_set;i++) {
+        if(table[i].length!=0)
+            printf("[%c,%d,%d]",table[i].ch,table[i].code,table[i].length);
+    }
 }
 
 /*void print_tree(Node *node) {
@@ -154,13 +165,12 @@ Node dequeue(NodeArray *arr) {
 
         index=index*2+1;
     }
-    print_Node(to_return);
+    /*print_Node(to_return);
     printf("\n");
     print_NodeArray(arr);
-    printf("\n");
+    printf("\n");*/
 
     return to_return;
-
 }
 
 
@@ -223,6 +233,12 @@ Node *build_tree(NodeArray *queue) {
     Node nullNode={NULL,NULL,0,0};
     if(queue->last<=0)
         return NULL;
+    /*
+     * in each iteration, 2 nodes are removed from the priority queue. (the smallest 2)
+     * a new Node, parent, is created, which points to each of them. the frequency is the sum of children.
+     * parent is inserted back into the queue.
+     * repeat above until only 1 node remains.
+     */
     Node *parent; //a new node, parent of the 2 smallest ones.
     Node *child1,*child2; //2 smallest nodes
     while (queue->last>1) {
@@ -233,22 +249,37 @@ Node *build_tree(NodeArray *queue) {
         child2=(Node*)malloc(sizeof(Node));
         *child1=dequeue(queue);
         *child2=dequeue(queue);
-        printf("\n");
+        // printf("\n");
         insert_node_at(parent,child1,0);
         insert_node_at(parent,child2,1);
         parent->freq=child1->freq+child2->freq;
         enqueue(queue,parent);
 
     }
+
     printf("\nqueue is now:\n");
     print_NodeArray(queue);
     printf("\n\ntree:");
     print_tree(parent);
-
     return parent;
-
 }
 
+void build_table(CodeElem *table,Node *node,int code, int length) {
+    length++;
+    if(node->left_node!=NULL) {
+        build_table(table,node->left_node,(code << 1)| 1,length);
+    }
+    if(node->right_node!=NULL) {
+        build_table(table,node->right_node,(code<<1),length);
+    }
+    else {
+        length--;
+        int i=node->data;
+        table[i].code=code;
+        table[i].length=length;
+        table[i].ch=i;
+    }
+}
 
 //encoding function: opens file, collects freq, then build tree.
 //Go through the file again and write the bin code from tree into new file
@@ -285,8 +316,12 @@ int encode(char input_file[], char output_file[]) {
 
     NodeArray *queue = build_queue(freq_arr);
     Node *tree=build_tree(queue);
-
-
+    CodeElem *table=(CodeElem*)malloc(char_set*sizeof(CodeElem));
+    for (i=0;i<char_set;i++) {
+        table[i].code=table[i].length=table[i].ch=0;
+    }
+    build_table(table,tree,0,0);
+    print_table(table);
 
     //for testing purposes, output values in freq array
     //to the output file
