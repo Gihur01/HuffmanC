@@ -290,7 +290,31 @@ void build_table(CodeElem *table,Node *node,int code, int length) {
     }
 }
 
-void write_serialized_tree(FILE *file, Node *root,char buffer, char buffer_size) {
+//This recursive function traverses the tree, and writes the serialized values into the data_array. (pre-order traverse)
+/* every * node is 1; every edge node is 0+ascii code
+ *e.g. tree:
+ *      *
+ *     A *
+ *      B C
+ *the result should look like: 10A10B0C (but in binary)
+ *Since it is hard to traverse tree and write to file at the same time, I decided to write all the parts into an array, and concat later.*/
+//since the chars are all ascii, the data_array size is char. change to larger type if working with Unicode.
+void write_serialized_tree(FILE *file, Node *root,char *data_array, int array_index) {
+    if (root->freq==0)
+        data_array[array_index]=1;
+    else {
+        data_array[array_index]=0;
+        data_array[++array_index]=root->data;
+    }
+    if(root->left_node!=NULL) {
+        write_serialized_tree(file,root->left_node,data_array,array_index+1);
+    }
+    if(root->right_node!=NULL) {
+        write_serialized_tree(file,root->right_node,data_array,array_index+1);
+    }
+}
+
+/*void write_serialized_tree(FILE *file, Node *root,char buffer, char buffer_size) {
     if(buffer_size>=8) {
         fwrite(&buffer,sizeof(char),1,file);
         buffer=buffer_size=0;
@@ -310,7 +334,7 @@ void write_serialized_tree(FILE *file, Node *root,char buffer, char buffer_size)
     buffer=(buffer<<1)|1;
     buffer_size++;
     if(root->left_node!=NULL);
-}
+}*/
 
 void write_code_table(FILE *file, CodeElem *table, int table_size) {
     int i;
