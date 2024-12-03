@@ -30,7 +30,7 @@ typedef struct {
 typedef struct {
     char ch;
     unsigned int code;
-    unsigned int length;
+    char length;
 } CodeElem;
 
 
@@ -95,6 +95,15 @@ void free_tree(Node *node) {
     else
         free(node);
 
+}
+
+int concat_bits(char *byte,char bit,int *byte_length) {
+    if(*byte_length>7) {
+        return 1;
+    }
+    *byte=(*byte<<1)|bit;
+    (*byte_length)++;
+    return 0;
 }
 
 /*To create a Huffman tree from a freq list, a priority queue is used.
@@ -274,10 +283,105 @@ void build_table(CodeElem *table,Node *node,int code, int length) {
     }
     else {
         length--;
-        int i=node->data;
+        char i=node->data;
         table[i].code=code;
         table[i].length=length;
         table[i].ch=i;
+    }
+}
+
+void write_serialized_tree(FILE *file, Node *root,char buffer, char buffer_size) {
+    if(buffer_size>=8) {
+        fwrite(&buffer,sizeof(char),1,file);
+        buffer=buffer_size=0;
+    }
+
+    if(root->freq!=0) {     //here comes a leaf node!
+        int shift=8-buffer_size;
+        //since a char is 1 byte, the buffer is 100% full, so here I fill the buffer with part of the char.
+        buffer=(buffer<<(shift));
+        buffer=buffer|((root->data)>>buffer_size);
+        fwrite(&buffer,sizeof(char),1,file);
+        buffer=((root->data)<<shift)>>shift; //setting buffer to remaining part of the char!
+        buffer_size=shift;
+        return;
+    }
+
+    buffer=(buffer<<1)|1;
+    buffer_size++;
+    if(root->left_node!=NULL);
+}
+
+void write_code_table(FILE *file, CodeElem *table, int table_size) {
+    int i;
+
+    if (file == NULL) {
+        perror("No file!");
+        exit(EXIT_FAILURE);
+    }
+
+    // Writing the number of entries in table
+    if (fwrite(&table_size, sizeof(unsigned int), 1, file) != 1) {
+        perror("Failed to write table size");
+        fclose(file);
+        exit(EXIT_FAILURE);
+    }
+
+    // Writing each entry in the table:
+    for (i = 0; i < char_set; i++) {
+        if(table[i].length<=0) {
+            continue;   //Quickly skipping each empty entry...
+        }
+
+        // Writing the character
+        if (fwrite(&table[i].ch, sizeof(char), 1, file) != 1) {
+            perror("Failed to write character");
+            fclose(file);
+            exit(EXIT_FAILURE);
+        }
+
+        // Writing the code
+        if (fwrite(&table[i].code, sizeof(unsigned int), 1, file) != 1) {
+            perror("Failed to write code");
+            fclose(file);
+            exit(EXIT_FAILURE);
+        }
+
+        // Writing the length of the code
+        if (fwrite(&table[i].length, sizeof(char), 1, file) != 1) {
+            perror("Failed to write length");
+            fclose(file);
+            exit(EXIT_FAILURE);
+        }
+    }
+
+}
+
+void write_encoded_data(FILE *in_file, FILE *out_file,CodeElem *table) {
+    rewind(in_file);
+    char buffer=0,c;
+    unsigned int code;
+    int i,res,buffer_length=0;
+    while ((c = fgetc(in_file)) != EOF) {
+        code=table[c].code;
+        if (table[c].length==0) {
+            continue;
+        }
+        for ( i = table[c].length - 1; i >= 0; i--) {
+            // Extract bits
+            char bit = (code >> i) & 1;
+            res=concat_bits(&buffer, bit, &buffer_length);
+            if (res) {
+                fwrite(&buffer, 1, 1, out_file); // Write the byte to the file
+                buffer = 0;                      // Reset the buffer
+                buffer_length = 0;
+
+            }
+        }
+    }
+    if (buffer_length > 0) {
+        buffer = buffer << (8 - buffer_length); // Pad remaining bits with 0s
+        fwrite(&buffer, 1, 1, out_file);
     }
 }
 
@@ -308,29 +412,44 @@ int encode(char input_file[], char output_file[]) {
         return 1;
     }
 
-    //update frequencies
+    //1. collect the frequencies
     char c;
     while ((c = fgetc(in_file)) != EOF) {  // Read character by character until end of file
         update_freq(c,freq_arr);
     }
 
+    //2. construct the priority queue
     NodeArray *queue = build_queue(freq_arr);
+
+    //3. construct the huffman tree
     Node *tree=build_tree(queue);
+
+    //4. construct the encoding table from the tree
+    //4.1 initializing the table (the build_table function is recursive)
     CodeElem *table=(CodeElem*)malloc(char_set*sizeof(CodeElem));
     for (i=0;i<char_set;i++) {
         table[i].code=table[i].length=table[i].ch=0;
     }
     build_table(table,tree,0,0);
-    print_table(table);
 
-    //for testing purposes, output values in freq array
-    //to the output file
-    for(i=0;i<127;i++) {
-        fprintf(out_file,",[%c,%d]",freq_arr[i].data,freq_arr[i].freq);
-        if (i%5==0)
-            fprintf(out_file,"\n");
+    //4.2 getting the table size
+    int table_size=0;
+    for (i=0;i<char_set;i++) {
+        if(table[i].length!=0)
+            table_size++;
     }
 
+    //print_table(table);
+
+    //5. Encoding and writing to output file
+    //5.1 writing the code table into the out_file
+    write_code_table(out_file,table,table_size);
+
+    //5.2 writing the encoded data to the out_file
+    write_encoded_data(in_file,out_file,table);
+
+    //freeing all allocated vars.
+    free(table);
     free(queue);
     free_tree(tree);
     fclose(in_file);
@@ -338,8 +457,73 @@ int encode(char input_file[], char output_file[]) {
     return 0;
 }
 
-void decode(char input_file[], char output_file[]);
+CodeElem *read_encoding_table(FILE *file,unsigned int *tableSize) {
+    int i,res;
+    char c;
+    if (fread(tableSize,sizeof(unsigned int),1,file) != 1) {
+        perror("Failed to read table size");
+        exit(EXIT_FAILURE);
+    }
 
+    CodeElem *table = (CodeElem *)malloc(*tableSize*sizeof(CodeElem));
+    if (table == NULL) {
+        perror("Memory allocation failed for table");
+        exit(EXIT_FAILURE);
+    }
+
+    for ( i = 0; i < *tableSize; i++) {
+        if (fread(&table[i].ch,sizeof(char),1,file) !=1 ||
+            fread(&table[i].code,sizeof(unsigned int), 1,file) != 1 ||
+            fread(&table[i].length,sizeof(char),1,file)!= 1) {
+
+            perror("Failed to read encoding table entry");
+            free(table);
+            exit(EXIT_FAILURE);
+            }
+    }
+
+    printf("\nRead table is:\n");
+    print_table(table);
+    return table;
+}
+
+void decode(char input_file[], char output_file[]) {
+    int i;
+
+    FILE *in_file=fopen(input_file, "rb");
+    if (in_file==NULL) {
+        perror("Failed to open input file");
+        exit(EXIT_FAILURE);
+    }
+
+    FILE *outFile=fopen(output_file, "w");
+    if (outFile==NULL) {
+        perror("Failed to open output file");
+        fclose(in_file);
+        exit(EXIT_FAILURE);
+    }
+
+    // Read the encoding table
+    unsigned int tableSize;
+    CodeElem *table = read_encoding_table(in_file, &tableSize);
+
+    char byte;
+    char buffer=0;
+    int buffer_size = 0;
+
+    while (fread(&byte, 1, 1, in_file) == 1) {
+        buffer=buffer<<1;
+        buffer_size++;
+        buffer=buffer|(byte>>7);
+        byte=byte<<1;
+
+
+
+
+    }
+
+    free(table);
+}
 
 //don't forget to check if malloc gives NULL!
 int main() {
