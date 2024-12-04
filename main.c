@@ -299,19 +299,22 @@ void build_table(CodeElem *table,Node *node,int code, int length) {
  *the result should look like: 10A10B0C (but in binary)
  *Since it is hard to traverse tree and write to file at the same time, I decided to write all the parts into an array, and concat later.*/
 //since the chars are all ascii, the data_array size is char. change to larger type if working with Unicode.
-void write_serialized_tree(FILE *file, Node *root,char *data_array, int array_index) {
-    if (root->freq==0)
+int serialize_tree(Node *root,char *data_array, int array_index) {
+    if (root->data==0)
         data_array[array_index]=1;
     else {
         data_array[array_index]=0;
         data_array[++array_index]=root->data;
+        return array_index;
     }
     if(root->left_node!=NULL) {
-        write_serialized_tree(file,root->left_node,data_array,array_index+1);
+        array_index=serialize_tree(root->left_node,data_array,array_index+1);
     }
     if(root->right_node!=NULL) {
-        write_serialized_tree(file,root->right_node,data_array,array_index+1);
+        array_index=serialize_tree(root->right_node,data_array,array_index+1);
     }
+
+    return array_index; //final length of the data array
 }
 
 /*void write_serialized_tree(FILE *file, Node *root,char buffer, char buffer_size) {
@@ -466,11 +469,39 @@ int encode(char input_file[], char output_file[]) {
     //print_table(table);
 
     //5. Encoding and writing to output file
-    //5.1 writing the code table into the out_file
-    write_code_table(out_file,table,table_size);
+    //5.1 serializing the tree and writing to file:
+    char *serial_tree_array=(char*) malloc(sizeof(char)*table_size*4); //data array that holds the serialized tree; 4x the length of the table, just in case.
+    int array_size=serialize_tree(tree,serial_tree_array,0);
+
+    char temp_byte=0;
+    int temp_byte_length=0;
+    for(i=0;i<table_size*4;i++) { //loop through each data element...
+        char current_data=serial_tree_array[i];
+        printf("%c,",current_data>=32 ? current_data : current_data+'0');
+        if(current_data!=1 && current_data!=0) { //if the data element is a char, then...
+            for(j=7;j>=0;j--) { //go through all bits in the char
+                if(concat_bits(&temp_byte,current_data & (1<<j),&temp_byte_length)==1) { //if the buffer is filled halfway, write to file, and empty it
+                    fwrite(&temp_byte,1,1,out_file);
+                    temp_byte=0;
+                    temp_byte_length=0;
+                }
+            }
+        }
+        else {
+            if(concat_bits(&temp_byte,current_data,&temp_byte_length)==1) {
+                fwrite(&temp_byte,1,1,out_file);
+                temp_byte=0;
+                temp_byte_length=0;
+            }
+        }
+
+
+    }
+
+    // write_code_table(out_file,table,table_size);
 
     //5.2 writing the encoded data to the out_file
-    write_encoded_data(in_file,out_file,table);
+    // write_encoded_data(in_file,out_file,table);
 
     //freeing all allocated vars.
     free(table);
