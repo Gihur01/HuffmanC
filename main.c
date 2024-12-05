@@ -65,9 +65,9 @@ void print_NodeArray(NodeArray *arr) {
     }
 }
 
-void print_table(CodeElem table[]) {
+void print_table(CodeElem table[],int table_size) {
     int i;
-    for (i=0;i<char_set;i++) {
+    for (i=0;i<table_size;i++) {
         if(table[i].length!=0)
             printf("[%c,%d,%d]",table[i].ch,table[i].code,table[i].length);
     }
@@ -395,9 +395,10 @@ void write_encoded_data(FILE *in_file, FILE *out_file,CodeElem *table) {
         if (table[c].length==0) {
             continue;
         }
-        for ( i = table[c].length - 1; i >= 0; i--) {
+        int length=table[c].length;
+        for ( i = length-1; i >= 0; i--) {
             // Extract bits
-            char bit = (code >> i) & 1;
+            char bit = (code>>i)& 1;
             res=concat_bits(&buffer, bit, &buffer_length);
             if (res) {
                 fwrite(&buffer, 1, 1, out_file); // Write the byte to the file
@@ -467,11 +468,15 @@ int encode(char input_file[], char output_file[]) {
             table_size++;
     }
 
-    //print_table(table);
+    printf("\n\n");
+    print_table(table,table_size);
+    printf("%d",table_size);
 
     //5. Encoding and writing to output file
-    //5.1 serializing the tree and writing to file:
-    char *serial_tree_array=(char*) malloc(sizeof(char)*table_size*4); //data array that holds the serialized tree; 4x the length of the table, just in case.
+    //5.1 writing the encoding table
+    write_code_table(out_file,table,table_size);
+
+    /*char *serial_tree_array=(char*) malloc(sizeof(char)*table_size*4); //data array that holds the serialized tree; 4x the length of the table, just in case.
     int array_size=0;
     serialize_tree(tree,serial_tree_array,&array_size);
 
@@ -496,14 +501,12 @@ int encode(char input_file[], char output_file[]) {
                 temp_byte_length=0;
             }
         }
+    }*/
 
 
-    }
-
-    // write_code_table(out_file,table,table_size);
 
     //5.2 writing the encoded data to the out_file
-    // write_encoded_data(in_file,out_file,table);
+    write_encoded_data(in_file,out_file,table);
 
     //freeing all allocated vars.
     free(table);
@@ -514,21 +517,20 @@ int encode(char input_file[], char output_file[]) {
     return 0;
 }
 
-CodeElem *read_encoding_table(FILE *file,unsigned int *tableSize) {
-    int i,res;
-    char c;
-    if (fread(tableSize,sizeof(unsigned int),1,file) != 1) {
+CodeElem *read_encoding_table(FILE *file,unsigned int *table_size) {
+    int i;
+    if (fread(table_size,sizeof(unsigned int),1,file) != 1) {
         perror("Failed to read table size");
         exit(EXIT_FAILURE);
     }
 
-    CodeElem *table = (CodeElem *)malloc(*tableSize*sizeof(CodeElem));
+    CodeElem *table = (CodeElem *)malloc((*table_size)*sizeof(CodeElem));
     if (table == NULL) {
         perror("Memory allocation failed for table");
         exit(EXIT_FAILURE);
     }
 
-    for ( i = 0; i < *tableSize; i++) {
+    for ( i = 0; i < *table_size; i++) {
         if (fread(&table[i].ch,sizeof(char),1,file) !=1 ||
             fread(&table[i].code,sizeof(unsigned int), 1,file) != 1 ||
             fread(&table[i].length,sizeof(char),1,file)!= 1) {
@@ -540,12 +542,13 @@ CodeElem *read_encoding_table(FILE *file,unsigned int *tableSize) {
     }
 
     printf("\nRead table is:\n");
-    print_table(table);
+    print_table(table,*table_size);
+    printf("\n\n");
     return table;
 }
 
 void decode(char input_file[], char output_file[]) {
-    int i;
+    int i,j;
 
     FILE *in_file=fopen(input_file, "rb");
     if (in_file==NULL) {
@@ -553,30 +556,48 @@ void decode(char input_file[], char output_file[]) {
         exit(EXIT_FAILURE);
     }
 
-    FILE *outFile=fopen(output_file, "w");
-    if (outFile==NULL) {
+    FILE *out_file=fopen(output_file, "w");
+    if (out_file==NULL) {
         perror("Failed to open output file");
         fclose(in_file);
         exit(EXIT_FAILURE);
     }
 
     // Read the encoding table
-    unsigned int tableSize;
-    CodeElem *table = read_encoding_table(in_file, &tableSize);
+    unsigned int table_size;
+    CodeElem *table = read_encoding_table(in_file, &table_size);
 
     char byte;
-    char buffer=0;
+    int buffer=0;
     int buffer_size = 0;
+    int match=0,match_flag=0; //the bits to be matched to a code
+    printf("Offset: %ld",ftell(in_file));
 
     while (fread(&byte, 1, 1, in_file) == 1) {
-        buffer=buffer<<1;
-        buffer_size++;
-        buffer=buffer|(byte>>7);
-        byte=byte<<1;
+        printf("\n%c",byte);
+        match_flag=0;
+        if(buffer_size<=8) {
+            buffer=buffer|byte; //adding byte to buffer
+            buffer_size+=8;
+        }
 
+        for(i=1;i<=buffer_size;i++) {
+            match=buffer>>(buffer_size-i); //taking the first i bits of buffer
+            for(j=0;j<table_size;j++) {
+                CodeElem current_elem=table[j];
+                if (table[j].length==i && table[j].code==match) {
+                    long pos=ftell(in_file);
+                    fwrite(&table[j].ch,sizeof(char),1,out_file);
+                    buffer=buffer&((1<<(buffer_size-i))-1); //eliminates the first i bits
+                    buffer_size-=i;
+                    match_flag=1;
+                    break;
+                }
 
-
-
+            }
+            if(match_flag==1)
+                break;
+        }
     }
 
     free(table);
@@ -585,5 +606,7 @@ void decode(char input_file[], char output_file[]) {
 //don't forget to check if malloc gives NULL!
 int main() {
     encode("input.txt","output.txt");
+    decode("output.txt","decoded.txt");
+
     return 0;
 }
