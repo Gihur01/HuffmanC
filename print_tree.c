@@ -33,12 +33,3 @@ void print_tree(struct Node *root) {
         printf("\n");
     }
 }
-
-// Utility function to create a new node
-struct Node *create_node(int data) {
-    struct Node *new_node = (struct Node *)malloc(sizeof(struct Node));
-    new_node->data = data;
-    new_node->left_node = NULL;
-    new_node->right_node = NULL;
-    return new_node;
-}

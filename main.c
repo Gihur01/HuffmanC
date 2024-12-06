@@ -1,5 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+
 #include "print_tree.h"
 
 const int char_set=128;
@@ -43,7 +45,6 @@ void insert_node_at(Node *parent, Node *child, int pos) {
 }
 
 
-
 void print_Node(Node node) {
     printf("[%c,%d],",node.data,node.freq);
 }
@@ -73,18 +74,6 @@ void print_concise_table(CodeElem table[],int table_size) {
     }
 }
 
-/*void print_tree(Node *node) {
-    printf(",%c",node->data);
-    if(node->left_node!=NULL){
-        printf(" left: ");
-        print_tree(node->left_node);
-    }
-    if (node->right_node!=NULL){
-        printf(" right: ");
-        print_tree(node->right_node);
-    }
-}*/
-
 void free_tree(Node *node) {
     if(node->left_node!=NULL) {
         free_tree(node->left_node);
@@ -96,7 +85,7 @@ void free_tree(Node *node) {
         free(node);
 }
 
-int concat_bits(char *byte,char bit,int *byte_length) {
+int concat_bits(unsigned char *byte,unsigned int bit,int *byte_length) {
     if(*byte_length>=8) {
         return -1; //buffer already full!
     }
@@ -188,7 +177,7 @@ Node dequeue(NodeArray *arr) {
 //takes one char and the frequency list,
 //and updates the corresponding frequency
 //IMPORTANT: c is counted at the index of its ascii code
-int update_freq(char c, FreqElem arr[]) {
+int update_freq(int c, FreqElem arr[]) {
     if (c>=char_set) {
         //PANIC!!
         perror("Char is larger than max character value??");
@@ -206,7 +195,6 @@ NodeArray *build_queue(FreqElem *arr) {
 
     Node *node_list;
     int i;
-    int size=0;
     Node node;
     node_list=(Node*)malloc(char_set*sizeof(Node));
 
@@ -230,10 +218,10 @@ NodeArray *build_queue(FreqElem *arr) {
 
 //builds the huffman tree
 Node *build_tree(NodeArray *queue) {
-    printf("initial");
+    /*printf("initial:\n");
     print_NodeArray(queue);
-    printf("\ndequeue results:\n");
-    Node nullNode={NULL,NULL,0,0};
+    printf("\ndequeue results:\n");*/
+
     if(queue->last<=0)
         return NULL;
     /*
@@ -260,10 +248,10 @@ Node *build_tree(NodeArray *queue) {
 
     }
 
-    printf("\nqueue is now:\n");
+    /*printf("\nqueue is now:\n");
     print_NodeArray(queue);
     printf("\n\ntree:");
-    print_tree(parent);
+    print_tree(parent);*/
     return parent;
 }
 
@@ -341,20 +329,20 @@ void write_serialized_tree(FILE *out_file, Node *root,char *buffer, char *buffer
 
 void write_encoded_data(FILE *in_file, FILE *out_file,CodeElem *table) {
     rewind(in_file);
-    char buffer=0,c;
+    char buffer=0;
     unsigned int code;
-    int i,res,buffer_length=0,length=0;
+    int i,res,buffer_length=0,length=0,c;
 
     while ((c = fgetc(in_file)) != EOF) {
         code=table[c].code;
         if (table[c].length==0) {   //skipping the char if not in table
             continue;
         }
-        length=table[c].length;
+        length=(int)table[c].length;
 
         for ( i = length-1; i >= 0; i--) {
             // Extract bits
-            char bit = (code>>i)& 1;
+            unsigned int bit = (code>>i)& 1;
             res=concat_bits(&buffer, bit, &buffer_length);
             if (res==1) {
                 fwrite(&buffer, 1, 1, out_file); // Write the byte to the file
@@ -373,9 +361,8 @@ void write_encoded_data(FILE *in_file, FILE *out_file,CodeElem *table) {
 //Go through the file again and write the bin code from tree into new file
 //then write out encoded, and the key.
 
-int encode(char input_file[], char output_file[]) {
+int encode(const char input_file[], const char output_file[]) {
     int i,j;
-
     //init the frequency array
     FreqElem freq_arr[128];
     for (i=0;i<128;i++) {
@@ -397,11 +384,11 @@ int encode(char input_file[], char output_file[]) {
     }
 
     //1. collect the frequencies
-    char c;
+    int c=0;
     while ((c = fgetc(in_file)) != EOF) {  // Read character by character until end of file
+
         update_freq(c,freq_arr);
     }
-
     //2. construct the priority queue
     NodeArray *queue = build_queue(freq_arr);
 
@@ -423,9 +410,9 @@ int encode(char input_file[], char output_file[]) {
             table_size++;
     }
 
-    printf("\n\n");
+    /*printf("\n\n");
     print_sparse_table(table);
-    printf("%d",table_size);
+    printf("%d",table_size);*/
 
     //5. Encoding and writing to output file
     //5.1 serializing and writing the tree
@@ -437,25 +424,36 @@ int encode(char input_file[], char output_file[]) {
     rewind(out_file); //move to the front to write the length
     fwrite(&serialized_tree_length,sizeof(unsigned int),1,out_file);
     fseek(out_file,serialized_tree_length+sizeof(unsigned int),SEEK_SET); //move back
-    printf("\n%d,,%d\n",serialized_tree_length,ftell(out_file));
+    // printf("\n%d,,%d\n",serialized_tree_length,ftell(out_file));
 
     //5.2 writing the encoded data to the out_file
     write_encoded_data(in_file,out_file,table);
 
     //freeing all allocated vars.
     free(table);
+    free(queue->start);
     free(queue);
     free_tree(tree);
-    fclose(in_file);
-    fclose(out_file);
+    if(fclose(in_file))
+        perror("Failed to close input file!");
+    if(fclose(out_file))
+        perror("Failed to close output file!");
+
+    printf("\n\nFile successfully outputted to %s",output_file);
     return 0;
 }
+
+/*-------------------------------------------decoding--------------------------------------------------*/
+
 
 //this reads the deserialized tree from file, and returns an array of char
 char* read_deserialized_tree(FILE *in_file,int *data_length) {
     fread(data_length,sizeof(unsigned int),1,in_file);
     char *deserialized_tree_array=(char*) malloc(*data_length*sizeof(char));
-    fread(deserialized_tree_array,sizeof(char),*data_length,in_file);
+    if(fread(deserialized_tree_array,sizeof(char),*data_length,in_file)!=*data_length) {
+        perror("Failed to read deserialized tree!");
+        exit(EXIT_FAILURE);
+    }
     return deserialized_tree_array;
 }
 
@@ -472,7 +470,7 @@ Node *new_node() {
 
 Node  *deserialize_tree(char *data_array, int *array_index,int *bit_index) {
     Node *node=new_node();
-    int bit=get_bit_at(data_array[*array_index],*bit_index);
+    unsigned int bit=get_bit_at(data_array[*array_index],*bit_index);
     if(bit==0) {
         (*array_index)++;
         node->data=data_array[*array_index];
@@ -495,13 +493,13 @@ Node  *deserialize_tree(char *data_array, int *array_index,int *bit_index) {
 //iteratively tranveses tree, and stores the char into c.
 //The return value denotes whether it is successful:
 // 1: not enough bits; 0: success; -1: empty node.
-int find_char(Node *node, unsigned int *buffer, unsigned int *buffer_length, Node **current_node) {
+int find_char(Node *node, const unsigned int *buffer, unsigned int *buffer_length, Node **current_node) {
 
     while (node->data==0) {
         if(*buffer_length==0) {
             return 1;
         }
-        int dir=get_bit_at(*buffer,*buffer_length);
+        unsigned int dir=get_bit_at(*buffer,*buffer_length);
 
         switch (dir) {
 
@@ -525,11 +523,12 @@ int find_char(Node *node, unsigned int *buffer, unsigned int *buffer_length, Nod
     return 0;
 }
 
+
+
 int read_byte(FILE *in_file,unsigned int *buffer,unsigned int *buffer_length) {
     //since int has a minimum length of 2 bytes, I assume it is 2 bytes.
 
     if (*buffer_length>8) {
-        // perror("buffer doesn't have enough space for the next byte!");
         return 1;
     }
     unsigned char byte;
@@ -542,40 +541,42 @@ int read_byte(FILE *in_file,unsigned int *buffer,unsigned int *buffer_length) {
     return 0;
 }
 
-void decode(char input_file[], char output_file[]) {
-    int i,j;
+
+int decode(const char input_file[], const char output_file[]) {
 
     FILE *in_file=fopen(input_file, "rb");
     if (in_file==NULL) {
         perror("Failed to open input file");
-        exit(EXIT_FAILURE);
+        return 1;
     }
 
-    FILE *out_file=fopen(output_file, "wb"); //wb because inserting \n in windows corresponds to \n\r, and makes file larger
+    FILE *out_file=fopen(output_file, "wb"); //wb because inserting \n in Windows corresponds to \n\r, and makes file larger
     if (out_file==NULL) {
-        perror("Failed to open output file");
+        perror("Failed to open output file!");
         fclose(in_file);
-        exit(EXIT_FAILURE);
+        return 1;
     }
 
-    printf("\n\nDecode:\n");
+
+
+    // printf("\n\nDecode:\n");
      int data_length=0, bit_index=8, array_index=0;
     char *data_array=read_deserialized_tree(in_file,&data_length);
     // printf("\nlength is:%d\n",data_length);
     /*for(i=0;i<=data_length+4;i++) {
         printf("%d,",data_array[i]);
     }*/
-    printf("\n");
+    // printf("\n");
     Node* tree=deserialize_tree(data_array,&array_index,&bit_index);
 
-    print_tree(tree);
-    printf("\n\n\nOffset: %d",ftell(in_file));
+    // print_tree(tree);
+    // printf("\n\n\nOffset: %d",ftell(in_file));
 
     char c=0;
     unsigned int buffer=0, buffer_length=0, end_flag=0;
     Node *c_node,*node=tree;
-    char byte;
 
+    //reading the file and finding the characters from tree:
     while (1) {
         int read_res=read_byte(in_file,&buffer,&buffer_length);
         int find_res=find_char(node,&buffer,&buffer_length,&c_node);
@@ -587,7 +588,7 @@ void decode(char input_file[], char output_file[]) {
                 break;
             case 1: {
                 if (read_res==-1)
-                    end_flag=1;
+                    end_flag=1; //if EOF reached, and buffer is used up, then quit.
                 else {
                     node=c_node;
                 }
@@ -599,12 +600,69 @@ void decode(char input_file[], char output_file[]) {
         if(end_flag==1)
             break;
     }
+
+    free_tree(tree);
+    free(data_array);
+    if(fclose(in_file))
+        perror("Failed to close input file!");
+    if(fclose(out_file))
+        perror("Failed to close output file!");
+    printf("\n\nFile successfully outputted to %s",output_file);
+    return 0;
 }
 
+/*-----------------------------main------------------------------------*/
+
+
 //don't forget to check if malloc gives NULL!
-int main() {
-    encode("shakespeare.txt","output.huf");
-    decode("output.huf","decoded.txt");
+int main(int argc, char *argv[]) {
+    const char help[]="Incorrect usage!\n"
+                      "Usage: Huffman <option> <input_file> <output_file>\n"
+                      "Options:\n"
+                      "-e Encode the input file.\n"
+                      "-d Decode the input file.\n"
+                      "-h Display this help message.\n"
+                      "note: if the <output_file> is not specified, the program will default to output.txt / output.huf\n";
+
+    //argc is the number of all segments on terminal, separated by space.
+    //So the program call itself is also included.
+
+    //check for minimum number of arguments
+    if (argc < 3) {
+        printf("%s",help);
+        return 1;
+    }
+
+    //defaults
+    char *default_output_txt="output.txt";
+    char *default_output_huf="output.huf";
+
+    //parse the command-line arguments
+    const char *mode = argv[1];
+    const char *input_file = argv[2];
+    char *output_file = argv[3];
+
+
+    if (strcmp(mode, "-e") == 0) {
+        // Encoding
+        if (output_file==NULL)
+            output_file=default_output_huf;
+
+        encode(input_file, output_file);
+
+    } else if (strcmp(mode, "-d") == 0) {
+        // Decoding
+        if (output_file==NULL)
+            output_file=default_output_txt;
+
+        decode(input_file, output_file);
+    } else {
+        // Invalid mode
+        fprintf(stderr, "Error: Unknown mode '%s'\n", mode);
+        printf("%s",help);
+        return 1;
+    }
 
     return 0;
+
 }
