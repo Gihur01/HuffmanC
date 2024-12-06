@@ -316,6 +316,7 @@ void write_serialized_tree(FILE *out_file, Node *root,char *buffer, char *buffer
     if(*buffer_size>=8) {
         fwrite(&buffer,sizeof(char),1,out_file);
         *buffer=*buffer_size=0;
+        (*count)++;
     }
 
     if(root->data!=0) {     //here comes a leaf node!
@@ -337,50 +338,6 @@ void write_serialized_tree(FILE *out_file, Node *root,char *buffer, char *buffer
         write_serialized_tree(out_file,root->right_node,buffer,buffer_size,count);
 }
 
-void write_code_table(FILE *file, CodeElem *table, int table_size) {
-    int i;
-
-    if (file == NULL) {
-        perror("No file!");
-        exit(EXIT_FAILURE);
-    }
-
-    // Writing the number of entries in table
-    if (fwrite(&table_size, sizeof(unsigned int), 1, file) != 1) {
-        perror("Failed to write table size");
-        fclose(file);
-        exit(EXIT_FAILURE);
-    }
-
-    // Writing each entry in the table:
-    for (i = 0; i < char_set; i++) {
-        if(table[i].length<=0) {
-            continue;   //Quickly skipping each empty entry...
-        }
-
-        // Writing the character
-        if (fwrite(&table[i].ch, sizeof(char), 1, file) != 1) {
-            perror("Failed to write character");
-            fclose(file);
-            exit(EXIT_FAILURE);
-        }
-
-        // Writing the code
-        if (fwrite(&table[i].code, sizeof(unsigned int), 1, file) != 1) {
-            perror("Failed to write code");
-            fclose(file);
-            exit(EXIT_FAILURE);
-        }
-
-        // Writing the length of the code
-        if (fwrite(&table[i].length, sizeof(char), 1, file) != 1) {
-            perror("Failed to write length");
-            fclose(file);
-            exit(EXIT_FAILURE);
-        }
-    }
-
-}
 
 void write_encoded_data(FILE *in_file, FILE *out_file,CodeElem *table) {
     rewind(in_file);
@@ -433,7 +390,7 @@ int encode(char input_file[], char output_file[]) {
         return 1;
     }
 
-    FILE *out_file = fopen(output_file, "w");
+    FILE *out_file = fopen(output_file, "wb");
     if (out_file == NULL) {
         perror("Error opening output file");
         return 1;
@@ -476,10 +433,11 @@ int encode(char input_file[], char output_file[]) {
     unsigned int serialized_tree_length=0;
     fwrite(&serialized_tree_length,sizeof(unsigned int),1,out_file); //reserve the first 2 bytes for the length
     write_serialized_tree(out_file,tree,&buffer,&buffer_size,&serialized_tree_length);
+
     rewind(out_file); //move to the front to write the length
     fwrite(&serialized_tree_length,sizeof(unsigned int),1,out_file);
     fseek(out_file,serialized_tree_length+sizeof(unsigned int),SEEK_SET); //move back
-
+    printf("\n%d,,%d\n",serialized_tree_length,ftell(out_file));
 
     //5.2 writing the encoded data to the out_file
     write_encoded_data(in_file,out_file,table);
@@ -493,7 +451,6 @@ int encode(char input_file[], char output_file[]) {
     return 0;
 }
 
-
 //this reads the deserialized tree from file, and returns an array of char
 char* read_deserialized_tree(FILE *in_file,int *data_length) {
     fread(data_length,sizeof(unsigned int),1,in_file);
@@ -502,7 +459,7 @@ char* read_deserialized_tree(FILE *in_file,int *data_length) {
     return deserialized_tree_array;
 }
 
-int get_bit_at(int byte,int pos) {
+unsigned int get_bit_at(unsigned int byte, unsigned int pos) {
     return (byte>>(pos-1))&1;
 }
 
@@ -538,12 +495,16 @@ Node  *deserialize_tree(char *data_array, int *array_index,int *bit_index) {
 //iteratively tranveses tree, and stores the char into c.
 //The return value denotes whether it is successful:
 // 1: not enough bits; 0: success; -1: empty node.
-int decode_char(Node **root, int *buffer, int *buffer_length, char *c) {
-    Node *node=*root;
+int find_char(Node *node, unsigned int *buffer, unsigned int *buffer_length, Node **current_node) {
+
     while (node->data==0) {
+        if(*buffer_length==0) {
+            return 1;
+        }
         int dir=get_bit_at(*buffer,*buffer_length);
 
         switch (dir) {
+
             case 1:
                 if(node->left_node!=NULL) {
                     node=node->left_node; break;
@@ -558,18 +519,27 @@ int decode_char(Node **root, int *buffer, int *buffer_length, char *c) {
                 else
                     return -1;
         }
-
-        if(buffer_length==0) {
-
-            return 1;
-        }
-
+        *current_node=node;
         (*buffer_length)--;
     }
-    *c=node->data;
     return 0;
+}
 
+int read_byte(FILE *in_file,unsigned int *buffer,unsigned int *buffer_length) {
+    //since int has a minimum length of 2 bytes, I assume it is 2 bytes.
 
+    if (*buffer_length>8) {
+        // perror("buffer doesn't have enough space for the next byte!");
+        return 1;
+    }
+    unsigned char byte;
+    if(fread(&byte,1,1,in_file)!=1) {
+        return -1; //if unable to read one byte, then EOF reached.
+    }
+    *buffer=((*buffer)<<8)|byte; //if byte is signed char, when expanding to int, padding on the left is 1 or 0 depending on leading bit...
+    //so if the byte starts with 1, padding will be 1, and buffer values are all set to 1...
+    *buffer_length+=8;
+    return 0;
 }
 
 void decode(char input_file[], char output_file[]) {
@@ -581,7 +551,7 @@ void decode(char input_file[], char output_file[]) {
         exit(EXIT_FAILURE);
     }
 
-    FILE *out_file=fopen(output_file, "w");
+    FILE *out_file=fopen(output_file, "wb"); //wb because inserting \n in windows corresponds to \n\r, and makes file larger
     if (out_file==NULL) {
         perror("Failed to open output file");
         fclose(in_file);
@@ -599,25 +569,42 @@ void decode(char input_file[], char output_file[]) {
     Node* tree=deserialize_tree(data_array,&array_index,&bit_index);
 
     print_tree(tree);
+    printf("\n\n\nOffset: %d",ftell(in_file));
 
     char c=0;
-    int buffer=0, buffer_length=sizeof(int);
-    Node *node=tree;
-    fread(&buffer,sizeof(int),1,in_file);
-    int res=decode_char(&node,&buffer,&buffer_length,&c);
-    switch (res) {
-        case 0:
-            printf("\nChar is: %c",c); break;
-        case 1:
-            case -1: break;
-    }
+    unsigned int buffer=0, buffer_length=0, end_flag=0;
+    Node *c_node,*node=tree;
+    char byte;
 
+    while (1) {
+        int read_res=read_byte(in_file,&buffer,&buffer_length);
+        int find_res=find_char(node,&buffer,&buffer_length,&c_node);
+        switch (find_res) {
+            case 0:
+                c=c_node->data;
+                node=tree;
+                fputc(c,out_file);
+                break;
+            case 1: {
+                if (read_res==-1)
+                    end_flag=1;
+                else {
+                    node=c_node;
+                }
+                break;
+            }
+            case -1:
+                printf("Tree error");
+        }
+        if(end_flag==1)
+            break;
+    }
 }
 
 //don't forget to check if malloc gives NULL!
 int main() {
-    encode("input.txt","output.txt");
-    decode("output.txt","decoded.txt");
+    encode("shakespeare.txt","output.huf");
+    decode("output.huf","decoded.txt");
 
     return 0;
 }
