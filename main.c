@@ -97,11 +97,14 @@ void free_tree(Node *node) {
 }
 
 int concat_bits(char *byte,char bit,int *byte_length) {
-    if(*byte_length>7) {
-        return 1;
+    if(*byte_length>=8) {
+        return -1; //buffer already full!
     }
     *byte=(*byte<<1)|bit;
     (*byte_length)++;
+    if(*byte_length==8) {
+        return 1; //buffer now full!
+    }
     return 0;
 }
 
@@ -387,7 +390,7 @@ void write_encoded_data(FILE *in_file, FILE *out_file,CodeElem *table) {
 
     while ((c = fgetc(in_file)) != EOF) {
         code=table[c].code;
-        if (table[c].length==0) {
+        if (table[c].length==0) {   //skipping the char if not in table
             continue;
         }
         length=table[c].length;
@@ -400,7 +403,6 @@ void write_encoded_data(FILE *in_file, FILE *out_file,CodeElem *table) {
                 fwrite(&buffer, 1, 1, out_file); // Write the byte to the file
                 buffer = 0;                      // Reset the buffer
                 buffer_length = 0;
-
             }
         }
     }
@@ -530,6 +532,21 @@ Node  *deserialize_tree(char *data_array, int *array_index,int *bit_index) {
         node->left_node=deserialize_tree(data_array,array_index,bit_index);
         node->right_node=deserialize_tree(data_array,array_index,bit_index);
         return node;
+    }
+}
+
+char traverse_tree(Node *node, int *buffer, int *buffer_length) {
+    if(node->data!=0)
+        return node->data;
+    char data=0;
+     int dir=get_bit_at(*buffer,*buffer_length);
+
+
+    switch (dir) {
+
+        case 1:
+            (*buffer_length)--;
+            data=traverse_tree(node->left_node,buffer,buffer_length);
     }
 }
 
