@@ -502,11 +502,11 @@ char* read_deserialized_tree(FILE *in_file,int *data_length) {
     return deserialized_tree_array;
 }
 
-int get_bit_at(char byte,int pos) {
+int get_bit_at(int byte,int pos) {
     return (byte>>(pos-1))&1;
 }
 
-Node*new_node() {
+Node *new_node() {
     Node *node=(Node*)malloc(sizeof(Node));
     node->data=node->freq=0;
     node->left_node=node->right_node=NULL;
@@ -535,19 +535,41 @@ Node  *deserialize_tree(char *data_array, int *array_index,int *bit_index) {
     }
 }
 
-char traverse_tree(Node *node, int *buffer, int *buffer_length) {
-    if(node->data!=0)
-        return node->data;
-    char data=0;
-     int dir=get_bit_at(*buffer,*buffer_length);
+//iteratively tranveses tree, and stores the char into c.
+//The return value denotes whether it is successful:
+// 1: not enough bits; 0: success; -1: empty node.
+int decode_char(Node **root, int *buffer, int *buffer_length, char *c) {
+    Node *node=*root;
+    while (node->data==0) {
+        int dir=get_bit_at(*buffer,*buffer_length);
 
+        switch (dir) {
+            case 1:
+                if(node->left_node!=NULL) {
+                    node=node->left_node; break;
+                }
+                else
+                    return -1; //this node has data 0 (should be internal) but has no children!
 
-    switch (dir) {
+            case 0:
+                if(node->right_node!=NULL) {
+                    node=node->right_node; break;
+                }
+                else
+                    return -1;
+        }
 
-        case 1:
-            (*buffer_length)--;
-            data=traverse_tree(node->left_node,buffer,buffer_length);
+        if(buffer_length==0) {
+
+            return 1;
+        }
+
+        (*buffer_length)--;
     }
+    *c=node->data;
+    return 0;
+
+
 }
 
 void decode(char input_file[], char output_file[]) {
@@ -569,14 +591,26 @@ void decode(char input_file[], char output_file[]) {
     printf("\n\nDecode:\n");
      int data_length=0, bit_index=8, array_index=0;
     char *data_array=read_deserialized_tree(in_file,&data_length);
-    printf("\nlength is:%d\n",data_length);
-    for(i=0;i<=data_length+4;i++) {
+    // printf("\nlength is:%d\n",data_length);
+    /*for(i=0;i<=data_length+4;i++) {
         printf("%d,",data_array[i]);
-    }
+    }*/
     printf("\n");
     Node* tree=deserialize_tree(data_array,&array_index,&bit_index);
 
     print_tree(tree);
+
+    char c=0;
+    int buffer=0, buffer_length=sizeof(int);
+    Node *node=tree;
+    fread(&buffer,sizeof(int),1,in_file);
+    int res=decode_char(&node,&buffer,&buffer_length,&c);
+    switch (res) {
+        case 0:
+            printf("\nChar is: %c",c); break;
+        case 1:
+            case -1: break;
+    }
 
 }
 
