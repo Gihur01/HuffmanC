@@ -17,7 +17,7 @@ void print_level(struct Node *root, int level) {
         return;
     }
     if (level == 1) {
-        printf("[%c,%d] ", root->data, root->freq);
+        printf("[%c/%d,%d] ", root->data, root->data, root->freq);
     } else if (level > 1) {
         print_level(root->left_node, level - 1);
         print_level(root->right_node, level - 1);

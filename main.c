@@ -42,14 +42,6 @@ void insert_node_at(Node *parent, Node *child, int pos) {
     }
 }
 
-void insert_node(Node *parent,Node *child) {
-    if(parent->left_node==NULL)
-        parent->left_node=child;
-    else if(parent->right_node==NULL)
-        parent->right_node=child;
-    else
-        printf("No space for child!");
-}
 
 
 void print_Node(Node node) {
@@ -65,9 +57,17 @@ void print_NodeArray(NodeArray *arr) {
     }
 }
 
-void print_table(CodeElem table[],int table_size) {
+void print_sparse_table(CodeElem table[]) {
     int i;
-    for (i=0;i<table_size;i++) {
+    for (i=0;i<char_set;i++) {
+        if(table[i].length!=0)
+            printf("[%c,%d,%d]",table[i].ch,table[i].code,table[i].length);
+    }
+}
+
+void print_concise_table(CodeElem table[],int table_size) {
+    int i;
+    for (i=0;i<char_set;i++) {
         if(table[i].length!=0)
             printf("[%c,%d,%d]",table[i].ch,table[i].code,table[i].length);
     }
@@ -94,7 +94,6 @@ void free_tree(Node *node) {
     }
     else
         free(node);
-
 }
 
 int concat_bits(char *byte,char bit,int *byte_length) {
@@ -223,14 +222,6 @@ NodeArray *build_queue(FreqElem *arr) {
 
     }
 
-    //test print
-    /*print_NodeArray(&node_array);
-    printf("\n\n");
-    Node temp_node=dequeue(&node_array);
-    print_NodeArray(&node_array);
-    printf("\nNode is: ");
-    print_Node(temp_node);*/
-
     return queue;
 }
 
@@ -318,27 +309,30 @@ void serialize_tree(Node *root,char *data_array, int *array_index) {
     // return array_index; //final length of the data array
 }
 
-/*void write_serialized_tree(FILE *file, Node *root,char buffer, char buffer_size) {
-    if(buffer_size>=8) {
-        fwrite(&buffer,sizeof(char),1,file);
-        buffer=buffer_size=0;
+void write_serialized_tree(FILE *out_file, Node *root,char *buffer, char *buffer_size,unsigned int *count) {
+    if(*buffer_size>=8) {
+        fwrite(&buffer,sizeof(char),1,out_file);
+        *buffer=*buffer_size=0;
     }
 
-    if(root->freq!=0) {     //here comes a leaf node!
-        int shift=8-buffer_size;
-        //since a char is 1 byte, the buffer is 100% full, so here I fill the buffer with part of the char.
-        buffer=(buffer<<(shift));
-        buffer=buffer|((root->data)>>buffer_size);
-        fwrite(&buffer,sizeof(char),1,file);
-        buffer=((root->data)<<shift)>>shift; //setting buffer to remaining part of the char!
-        buffer_size=shift;
-        return;
+    if(root->data!=0) {     //here comes a leaf node!
+        *buffer=*buffer<<(8-*buffer_size);
+        fwrite(buffer,1,1,out_file);
+        fwrite(&(root->data),sizeof(char),1,out_file);
+        (*count)++;
+        *buffer=*buffer_size=0;
+    }
+    else {
+        *buffer=(*buffer<<1)|1;
+        (*buffer_size)++;
+        (*count)++;
     }
 
-    buffer=(buffer<<1)|1;
-    buffer_size++;
-    if(root->left_node!=NULL);
-}*/
+    if(root->left_node!=NULL)
+        write_serialized_tree(out_file,root->left_node,buffer,buffer_size,count);
+    if(root->right_node!=NULL)
+        write_serialized_tree(out_file,root->right_node,buffer,buffer_size,count);
+}
 
 void write_code_table(FILE *file, CodeElem *table, int table_size) {
     int i;
@@ -389,18 +383,20 @@ void write_encoded_data(FILE *in_file, FILE *out_file,CodeElem *table) {
     rewind(in_file);
     char buffer=0,c;
     unsigned int code;
-    int i,res,buffer_length=0;
+    int i,res,buffer_length=0,length=0;
+
     while ((c = fgetc(in_file)) != EOF) {
         code=table[c].code;
         if (table[c].length==0) {
             continue;
         }
-        int length=table[c].length;
+        length=table[c].length;
+
         for ( i = length-1; i >= 0; i--) {
             // Extract bits
             char bit = (code>>i)& 1;
             res=concat_bits(&buffer, bit, &buffer_length);
-            if (res) {
+            if (res==1) {
                 fwrite(&buffer, 1, 1, out_file); // Write the byte to the file
                 buffer = 0;                      // Reset the buffer
                 buffer_length = 0;
@@ -468,45 +464,29 @@ int encode(char input_file[], char output_file[]) {
             table_size++;
     }
 
-    printf("\n\n");
-    print_table(table,table_size);
-    printf("%d",table_size);
+    /*printf("\n\n");
+    print_sparse_table(table);
+    printf("%d",table_size);*/
 
     //5. Encoding and writing to output file
     //5.1 writing the encoding table
-    write_code_table(out_file,table,table_size);
+    // write_code_table(out_file,table,table_size);
 
-    /*char *serial_tree_array=(char*) malloc(sizeof(char)*table_size*4); //data array that holds the serialized tree; 4x the length of the table, just in case.
-    int array_size=0;
-    serialize_tree(tree,serial_tree_array,&array_size);
+    char *serial_tree_array=(char*) malloc(sizeof(char)*table_size*4);
+    //data array that holds the serialized tree; 4x the length of the table, just in case.
 
-    char temp_byte=0;
-    int temp_byte_length=0;
-    for(i=0;i<table_size*4;i++) { //loop through each data element...
-        char current_data=serial_tree_array[i];
-        printf("%c,",current_data>=32 ? current_data : current_data+'0');
-        if(current_data!=1 && current_data!=0) { //if the data element is a char, then...
-            for(j=7;j>=0;j--) { //go through all bits in the char
-                if(concat_bits(&temp_byte,current_data & (1<<j),&temp_byte_length)==1) { //if the buffer is filled halfway, write to file, and empty it
-                    fwrite(&temp_byte,1,1,out_file);
-                    temp_byte=0;
-                    temp_byte_length=0;
-                }
-            }
-        }
-        else {
-            if(concat_bits(&temp_byte,current_data,&temp_byte_length)==1) {
-                fwrite(&temp_byte,1,1,out_file);
-                temp_byte=0;
-                temp_byte_length=0;
-            }
-        }
-    }*/
 
+    char buffer=0,buffer_size=0;
+    unsigned int serialized_tree_length=0;
+    fwrite(&serialized_tree_length,sizeof(unsigned int),1,out_file); //reserve the first 2 bytes for the length
+    write_serialized_tree(out_file,tree,&buffer,&buffer_size,&serialized_tree_length);
+    rewind(out_file); //move to the front to write the length
+    fwrite(&serialized_tree_length,sizeof(unsigned int),1,out_file);
+    fseek(in_file,serialized_tree_length+1,0); //move back
 
 
     //5.2 writing the encoded data to the out_file
-    write_encoded_data(in_file,out_file,table);
+    // write_encoded_data(in_file,out_file,table);
 
     //freeing all allocated vars.
     free(table);
@@ -517,12 +497,13 @@ int encode(char input_file[], char output_file[]) {
     return 0;
 }
 
-CodeElem *read_encoding_table(FILE *file,unsigned int *table_size) {
+/*CodeElem *read_encoding_table(FILE *file,unsigned int *table_size) {
     int i;
     if (fread(table_size,sizeof(unsigned int),1,file) != 1) {
         perror("Failed to read table size");
         exit(EXIT_FAILURE);
     }
+    printf("\nsize:%d",*table_size);
 
     CodeElem *table = (CodeElem *)malloc((*table_size)*sizeof(CodeElem));
     if (table == NULL) {
@@ -542,9 +523,50 @@ CodeElem *read_encoding_table(FILE *file,unsigned int *table_size) {
     }
 
     printf("\nRead table is:\n");
-    print_table(table,*table_size);
-    printf("\n\n");
+    print_concise_table(table,*table_size);
     return table;
+}*/
+
+//this reads the deserialized tree from file, and returns an array of char
+char* read_deserialized_tree(FILE *in_file,int *data_length) {
+    fread(data_length,sizeof(unsigned int),1,in_file);
+    char *deserialized_tree_array=(char*) malloc(*data_length*sizeof(char));
+    fread(deserialized_tree_array,sizeof(char),*data_length,in_file);
+    return deserialized_tree_array;
+}
+
+int get_bit_at(char byte,int pos) {
+    return (byte>>(pos-1))&1;
+}
+
+Node  *deserialize_tree(char *data_array, int *array_index,int *bit_index) {
+
+    Node *node=(Node*)malloc(sizeof(Node));
+    node->data=node->freq=0;
+    node->left_node=node->right_node=NULL;
+    int bit=get_bit_at(data_array[*array_index],*bit_index);
+
+
+    if(bit==0) {
+        (*array_index)++;
+        node->data=data_array[*array_index];
+        (*array_index)++;
+        *bit_index=8;
+        return node;
+    }
+    else {
+        (*bit_index)--;
+        if(*bit_index<=0) {
+            *bit_index=8;
+            (*array_index)++;
+        }
+        node->left_node=deserialize_tree(data_array,array_index,bit_index);
+        node->right_node=deserialize_tree(data_array,array_index,bit_index);
+        return node;
+
+    }
+
+
 }
 
 void decode(char input_file[], char output_file[]) {
@@ -563,11 +585,18 @@ void decode(char input_file[], char output_file[]) {
         exit(EXIT_FAILURE);
     }
 
-    // Read the encoding table
-    unsigned int table_size;
-    CodeElem *table = read_encoding_table(in_file, &table_size);
+     int data_length=0, bit_index=8, array_index=0;
+    char *data_array=read_deserialized_tree(in_file,&data_length);
+    printf("\nlength is:%d",data_length);
+    Node* tree=deserialize_tree(data_array,&array_index,&bit_index);
 
-    char byte;
+    print_tree(tree);
+
+    // Read the encoding table
+    // unsigned int table_size;
+    // CodeElem *table = read_encoding_table(in_file, &table_size);
+
+    /*char byte;
     int buffer=0;
     int buffer_size = 0;
     int match=0,match_flag=0; //the bits to be matched to a code
@@ -600,7 +629,7 @@ void decode(char input_file[], char output_file[]) {
         }
     }
 
-    free(table);
+    free(table);*/
 }
 
 //don't forget to check if malloc gives NULL!
