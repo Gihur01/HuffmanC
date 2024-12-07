@@ -281,24 +281,6 @@ void build_table(CodeElem *table,Node *node,int code, int length) {
  *the result should look like: 10A10B0C (but in binary)
  *Since it is hard to traverse tree and write to file at the same time, I decided to write all the parts into an array, and concat later.*/
 //since the chars are all ascii, the data_array size is char. change to larger type if working with Unicode.
-void serialize_tree(Node *root,char *data_array, int *array_index) {
-    if (root->data==0)
-        data_array[*array_index]=1;
-    else {
-        data_array[*array_index]=0;
-        data_array[++(*array_index)]=root->data;
-        // return array_index;
-    }
-    (*array_index)++;
-    if(root->left_node!=NULL) {
-        serialize_tree(root->left_node,data_array,array_index);
-    }
-    if(root->right_node!=NULL) {
-        serialize_tree(root->right_node,data_array,array_index);
-    }
-
-    // return array_index; //final length of the data array
-}
 
 void write_serialized_tree(FILE *out_file, Node *root,char *buffer, char *buffer_size,unsigned int *count) {
     if(*buffer_size>=8) {
@@ -616,8 +598,7 @@ int decode(const char input_file[], const char output_file[]) {
 
 //don't forget to check if malloc gives NULL!
 int main(int argc, char *argv[]) {
-    const char help[]="Incorrect usage!\n"
-                      "Usage: Huffman <option> <input_file> <output_file>\n"
+    const char help[]="Usage: Huffman <option> <input_file> <output_file>\n"
                       "Options:\n"
                       "-e Encode the input file.\n"
                       "-d Decode the input file.\n"
@@ -629,6 +610,7 @@ int main(int argc, char *argv[]) {
 
     //check for minimum number of arguments
     if (argc < 3) {
+        printf("Incorrect number of arguments!\n");
         printf("%s",help);
         return 1;
     }
